@@ -64,7 +64,8 @@ class climbSlope(object):
         launchInclination = 0,
         acceleration = None,
         timestep = 1,
-        gravityTurnCurve = 1):
+        gravityTurnCurve = 1,
+        dragCoefficient = None):
         """
         Compute a climb slope for exiting the atmosphere and achieving orbit.
 
@@ -141,6 +142,9 @@ class climbSlope(object):
         else:
             v = list(initialVelocity)
 
+        if dragCoefficient is None:
+            dragCoefficient = planet.defaultDragCoefficient
+
         # p and v are the current position and velocity; we update these.
         # We use a coordinate system centered at the core of the planet,
         # aligned so that the initial altitude forms the y axis.
@@ -209,7 +213,7 @@ class climbSlope(object):
 
             # Compute the gravity and drag.
             a_grav = planet.gravity(alt)
-            a_drag = planet.drag(alt, L2(v))
+            a_drag = planet.drag(alt, L2(v), dragCoefficient)
 
             # Terminal velocity for our altitude:
             #print ("drag %g m/s^2, grav %g m/s^2, term %g m/s" % (a_drag, a_grav, v_term))
@@ -250,7 +254,7 @@ class climbSlope(object):
             def findTerminalThrust():
                 # above the top of the atmosphere, there is no limit!
                 if alt >= TOA: return 1e30
-                v_term = planet.terminalVelocity(alt)
+                v_term = planet.terminalVelocity(alt, dragCoefficient)
                 a = timestep * timestep
                 v_noTX = v_nothrust[0] * cos(phi) + v_nothrust[1] * sin(phi)
                 b = 2 * timestep * v_noTX

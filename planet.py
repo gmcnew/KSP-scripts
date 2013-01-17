@@ -25,16 +25,13 @@ the KSP solar system.
 """
 
 # The drag model in KSP 0.18.1 is
-#       F_{drag} = gamma D v^2 m
-# where D is atmospheric density, v is the speed, m the mass (as a standin
-# for cross-section).  gamma combines a bunch of coefficients in one
-# (including the 1/2 that would normally be there).  It is not actually
-# a constant, but it varies little over reported terminal velocities and over
-# the parts we actually use (though aero components have lower drag).
-coefficientOfDrag = 0.2 # Assumed constant, not really the case
+#       F_{drag} = gamma D P v^2 m
+# where D is the coefficient of drag, P is atmospheric pressure, v is the speed,
+# m the mass (as a standin for cross-section).  gamma combines a bunch of
+# coefficients in one (including the 1/2 that would normally be there).
 dragMultiplier = 0.008
 kerbinSurfaceDensity = 1.2230948554874
-gamma = 0.5 * coefficientOfDrag * dragMultiplier * kerbinSurfaceDensity
+gamma = 0.5 * dragMultiplier * kerbinSurfaceDensity
 
 
 class planet(object):
@@ -52,6 +49,7 @@ class planet(object):
         self.ap = ap
         self.pe = pe
         self.sma = (ap + pe) / 2
+        self.defaultDragCoefficient = 0.2
 
     def __str__(self): return self.name
 
@@ -229,7 +227,7 @@ class planet(object):
         return v - self.orbitalVelocity(altitude)
 
 
-    def terminalVelocity(self, altitude):
+    def terminalVelocity(self, altitude, dragCoefficient = None):
         """
         Return the terminal velocity at a given altitude.
         This is the speed at which drag is as strong as gravity.
@@ -237,14 +235,15 @@ class planet(object):
         altitude is in meters.
         """
 
-        # v = sqrt(g/ (datumPressure * gamma * e^{-altitude/scale}))
+        # v = sqrt(g/ (datumPressure * gamma * D * e^{-altitude/scale}))
         # Then pull the e term out, and remember that gravity changes
         # (slightly) with altitude.
+        if dragCoefficient is None: dragCoefficient = self.defaultDragCoefficient
         if altitude is None or altitude >= self.topOfAtmosphere(): return float("inf")
         return exp(0.5 * altitude / self.scale) * sqrt(
-                    self.gravity(altitude) / (gamma * self.datumPressure) )
+                    self.gravity(altitude) / (gamma * dragCoefficient * self.datumPressure) )
 
-    def drag(self, altitude, velocity):
+    def drag(self, altitude, velocity, dragCoefficient = None):
         """
         Return the acceleration due to drag, in m/s^2.
 
@@ -253,13 +252,15 @@ class planet(object):
 
         altitude is in meters, velocity in m/s
         """
-        # F_{drag} = D v^2 m gamma, where D is atmospheric pressure, v is
-        # the speed, m the mass (as a standin for cross-section), and gamma
-        # combines a bunch of variables that are close enough to constant.
-        # To get the acceleration, divide by mass, which cancels out m:
-        # a_{drag} = gamma P v^2
+        # F_{drag} = P v^2 m D gamma, where P is atmospheric pressure, v is
+        # the speed, m the mass (as a standin for cross-section), D is the
+        # coefficient of drag, and gamma combines a bunch of variables that are
+        # close enough to constant. To get the acceleration, divide by mass,
+        # which cancels out m:
+        # a_{drag} = gamma P v^2 D
+        if dragCoefficient is None: dragCoefficient = self.defaultDragCoefficient
         if altitude is None or altitude >= self.topOfAtmosphere(): return 0
-        return gamma * self.pressure(altitude) * velocity * velocity
+        return gamma * dragCoefficient * self.pressure(altitude) * (velocity ** 2)
 
     def pressure(self, altitude):
         """
