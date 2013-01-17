@@ -39,7 +39,7 @@ gamma = 0.5 * coefficientOfDrag * dragMultiplier * kerbinSurfaceDensity
 
 class planet(object):
 
-    def __init__(self, name, gravityParam, SOI, radiusKm, siderealPeriod, datumPressure, scale):
+    def __init__(self, name, gravityParam, SOI, radiusKm, siderealPeriod, datumPressure, scale, ap, pe):
         self.name = name
         self.mu = gravityParam          # m^3/s^2
         self.SOI = SOI                  # m
@@ -49,6 +49,9 @@ class planet(object):
         self.siderealRotationSpeed = 2 * pi * self.radius / siderealPeriod # m/s
         self.datumPressure = datumPressure      # atm
         self.scale = scale      # m (pressure falls by e every scale altitude)
+        self.ap = ap
+        self.pe = pe
+        self.sma = (ap + pe) / 2
 
     def __str__(self): return self.name
 
@@ -295,27 +298,30 @@ class planet(object):
 # the sun has an infinite SOI; arbitrarily set it to 500x the orbit of Jool
 sunSOI = 500 * 71950638386
 
+# the sun doesn't orbit anything
+sunAp = sunPe = 0
+
 planets = dict([ (p.name.lower(), p) for p in (
-    #      name,     mu,             SOI,          radiusKm, sidereal, atm, scale
-    planet("Kerbol", 1.172332794E+18,        sunSOI, 261600,  432000,   0,    0),
-    planet("Moho",      245250003655,   11206449   ,    250, 1210000,   0,    0),
-    planet("Eve",      8171730229211,   85109365   ,    700,   80500,   5, 7000),
-    planet("Gilly",          8289450,     126123.27,     13,   28255,   0,    0),
-    planet("Kerbin",      3.5316E+12,   84159286   ,    600,   21600,   1, 5000),
-    planet("Mun",        65138397521,    2429559.1 ,    200,  138984,   0,    0),
-    planet("Minmus",      1765800026,    2247428.4 ,     60,   40400,   0,    0),
-    planet("Duna",      301363211975,   47921949   ,    320,   65518, 0.2, 3000),
-    planet("Ike",        18568368573,    1049598.9 ,    130,   65518,   0,    0),
-    planet("Dres",       21484488600,   32700000   ,    138,   34800,   0,    0),
-    planet("Jool",   282528004209995, 2455985200   ,    600,   36000,  15, 9000),
-    planet("Laythe",   1962000029236,    3723645.8 ,    500,   52981, 0.8, 4000),
-    planet("Vall",      207481499474,    2406401.4 ,    300,  105962,   0,    0),
-    planet("Tylo",     2825280042100,   10856518   ,    600,  211926,   0,    0),
-    planet("Bop",         2486834944,     993002.8 ,     65,  544507,   0,    0),
-    planet("Pol",          227905920,    1041613   ,     44,  901903,   0,    0),
-    planet("Eeloo",      74410814527,  119087000   ,    210,   19460,   0,    0),
+    #      name,     mu,             SOI,          radiusKm, sidereal, atm, scale,   apoapsis,   periapsis
+    planet("Kerbol", 1.172332794E+18,        sunSOI, 261600,  432000,   0,    0,        sunAp,       sunPe),
+    planet("Moho",      245250003655,   11206449   ,    250, 1210000,   0,    0,   6315765980,  4210510628),
+    planet("Eve",      8171730229211,   85109365   ,    700,   80500,   5, 7000,   9931011387,  9734357701),
+    planet("Gilly",          8289450,     126123.27,     13,   28255,   0,    0,     48825000,    14175000),
+    planet("Kerbin",      3.5316E+12,   84159286   ,    600,   21600,   1, 5000,  13599840256, 13599840256),
+    planet("Mun",        65138397521,    2429559.1 ,    200,  138984,   0,    0,     12000000,    12000000),
+    planet("Minmus",      1765800026,    2247428.4 ,     60,   40400,   0,    0,     47000000,    47000000),
+    planet("Duna",      301363211975,   47921949   ,    320,   65518, 0.2, 3000,  21783189163, 19669121365),
+    planet("Ike",        18568368573,    1049598.9 ,    130,   65518,   0,    0,      3296000,     3104000),
+    planet("Dres",       21484488600,   32700000   ,    138,   34800,   0,    0,  46761053522, 34917642884),
+    planet("Jool",   282528004209995, 2455985200   ,    600,   36000,  15, 9000,  71950638386, 65073282253),
+    planet("Laythe",   1962000029236,    3723645.8 ,    500,   52981, 0.8, 4000,     27184000,    27184000),
+    planet("Vall",      207481499474,    2406401.4 ,    300,  105962,   0,    0,     43152000,    43152000),
+    planet("Tylo",     2825280042100,   10856518   ,    600,  211926,   0,    0,     68500000,    68500000),
+    planet("Bop",         2486834944,     993002.8 ,     65,  544507,   0,    0,    129057500,    79942500),
+    planet("Pol",          720792000,    1041613   ,     44,  901903,   0,    0,    210624206,   149155794),
+    planet("Eeloo",      74410814527,  119087000   ,    210,   19460,   0,    0, 113549713200, 66687926800),
 ) ])
-del sunSOI
+del sunSOI, sunAp, sunPe
 
 def getPlanet(name):
     return planets[name.lower()]
