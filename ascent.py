@@ -63,7 +63,8 @@ class climbSlope(object):
         initialVelocity = None,
         launchInclination = 0,
         acceleration = None,
-        timestep = 1):
+        timestep = 1,
+        gravityTurnCurve = 1):
         """
         Compute a climb slope for exiting the atmosphere and achieving orbit.
 
@@ -199,6 +200,7 @@ class climbSlope(object):
             else:
                 # What fraction of the turn have we done?
                 ratio = (alt - gravityTurnStart) / (gravityTurnEnd - gravityTurnStart)
+                ratio **= gravityTurnCurve
                 # The more we did, the closer we want to be to pi/2 from
                 # the straight-up orientation.
                 phiSurf = - (ratio * math.pi / 2)
