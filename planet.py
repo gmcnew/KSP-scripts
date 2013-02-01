@@ -63,7 +63,7 @@ class planet(object):
         r = self.radius + altitude
         return self.mu / (r*r)
 
-    def orbitalVelocity(self, altitude):
+    def orbitalVelocity(self, altitude, ap = None, pe = None):
         """
         Return the velocity required to maintain an orbit with the given
         altitude at the semimajor axis (e.g. a circular orbit at that
@@ -71,7 +71,11 @@ class planet(object):
 
         altitude is in meters.
         """
-        return sqrt(self.mu / (self.radius + altitude))
+        if ap is None: ap = altitude
+        if pe is None: pe = altitude
+        r = self.radius + altitude
+        a = self.radius + (ap + pe) / 2
+        return sqrt(self.mu * (2 / r - 1 / a))
 
     def escapeVelocity(self, altitude):
         """
