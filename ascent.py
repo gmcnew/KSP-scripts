@@ -65,7 +65,9 @@ class climbSlope(object):
         acceleration = None,
         timestep = 1,
         gravityTurnCurve = 1,
-        dragCoefficient = None):
+        dragCoefficient = None,
+        specificImpulse = None,
+        shipThrust = None):
         """
         Compute a climb slope for exiting the atmosphere and achieving orbit.
 
@@ -83,11 +85,14 @@ class climbSlope(object):
         with an angle that varies linearly with altitude.  The start and end points
         of the turn can be changed, the curve cannot.
 
-        There's no model of variable acceleration.  It would be easy
-        to add in since we are using numerical integration; you'd want to
-        take in a function from (deltaV, altitude, velocity) ->
-        acceleration to model jets.  By default, acceleration is assumed to be 2.2g,
-        which is good low down (except the first ~100m) but too little at altitude.
+        Variable acceleration is modeled if shipThrust (in kN) and specificImpulse
+        (in s) are specified. Initial ship mass is calculated by assuming that the given
+        acceleration is the maximum acceleration achievable at launch. At each step of
+        the ascent, the total delta-V achieved and the given specificImpulse are used to
+        reduce the ship's mass and thus increase its maximum acceleration.
+
+        By default, acceleration is assumed to be 2.2g, which is good low down (except
+        the first ~100m) but too little at altitude.
 
         Specify the timestep to change the accuracy; by default we
         use a timestep of 1s.  It is a fixed timestep.  Smaller timesteps
@@ -155,9 +160,13 @@ class climbSlope(object):
         t = 0                                    # s
         dragLoss = 0                             # m/s
         if acceleration is None:
-            a_thrust = 2.2 * planet.gravity(initialAltitude) # m/s^2
-        else:
-            a_thrust = acceleration
+            acceleration = 2.2 * planet.gravity(initialAltitude) # m/s^2
+
+        variable_accel = not (specificImpulse is None and shipThrust is None)
+
+        if variable_accel:
+            # f=ma, so m=f/a
+            mass = shipThrust / acceleration
 
         TOA = planet.topOfAtmosphere() # m
         if orbitAltitude is None:
@@ -306,6 +315,27 @@ class climbSlope(object):
             thrust_apo = findApoapsisThrust(thrust_term)
 
             thrust = min(thrust_term, thrust_apo)
+
+            def getAcceleration(dv, alt):
+                acc = acceleration
+                if variable_accel:
+                    # dv = isp * g0 * ln(m0/m1)
+                    # m0 / m1 = math.exp(dv / (isp * g0))
+                    # 1 + dm / m0 = math.exp(dv / (isp * g0))
+                    # dm = m0 * (math.exp(dv / (isp * g0)) - 1)
+                    # m = m0 - dm
+                    # m = m0 * (1 - (math.exp(dv / (isp * g0)) - 1))
+                    # m = m0 * (2 - math.exp(dv / (isp * g0)))
+                    # m0 = shipThrust / acceleration
+                    # m = (2 - math.exp(dv / (isp * g0))) * shipThrust / acceleration
+                    # acc = shipThrust / m
+                    # acc = acceleration / (2 - math.exp(dv / (isp * g0)))
+                    acc /= (2 - math.exp(dv / (specificImpulse * 9.81)))
+                return acc
+
+            # f=ma, so a=f/m
+            a_thrust = getAcceleration(dV, alt)
+
             #print ("thrust: %g to reach term, %g to reach apo" % (thrust_term, thrust_apo))
             if thrust < a_thrust:
                 thrustLimit = 0
