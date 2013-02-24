@@ -34,4 +34,7 @@ def quadratic(a, b, c):
     return ( (-b + sqrtdiscriminant) / a2, (-b - sqrtdiscriminant) / a2)
 
 def L2(vector):
-    return math.sqrt(sum(x*x for x in vector))
+    a = 0
+    for x in vector:
+        a += x ** 2
+    return math.sqrt(a)
