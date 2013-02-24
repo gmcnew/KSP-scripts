@@ -190,6 +190,11 @@ class climbSlope(object):
         # decide how much to burn and update our position.
         targetApoapsis = orbitAltitude + planet.radius
         climbSlope = []             # ClimbPoint list
+
+        # Keep track of approximately how much thrust would be needed to reach
+        # the desired apoapsis.
+        thrust_apo = None
+
         while h < targetApoapsis and t < 1000:
             if h < planet.radius:
                 # We crashed!  Bring more thrust next time.
@@ -234,11 +239,14 @@ class climbSlope(object):
                 - (a_drag * sin(theta) + a_grav * sin(psi))
             )
             v_nothrust = [ v[i] + loss[i] * timestep for i in range(2) ]
+
+            def thrustResult2(thrust, tx, ty):
+                return (v_nothrust[0] + thrust * tx, v_nothrust[1] + thrust * ty)
+
             def thrustResult(thrust):
-                return (
-                    v_nothrust[0] + thrust * cos(phi) * timestep,
-                    v_nothrust[1] + thrust * sin(phi) * timestep,
-                )
+                tx = cos(phi) * timestep
+                ty = sin(phi) * timestep
+                return thrustResult2(thrust, tx, ty)
 
             # Compute the acceleration that gets us to terminal velocity in the
             # direction of thrust.
@@ -274,7 +282,7 @@ class climbSlope(object):
             # Binary search the thrust to achieve the apoapsis.
             # I'm sure this could be worked out analytically.
             # Use the terminal velocity thrust to reduce our search space.
-            def findApoapsisThrust(thrust_term):
+            def findApoapsisThrust(thrust_term, guess = None):
 
                 # The most we could want to speed up is enough to immediately
                 # get our momentum to match what it will when we have a
@@ -295,14 +303,23 @@ class climbSlope(object):
                                (p[0]*cos(thetaSurf) + p[1]*sin(thetaSurf)))
                 thrust_targetMax = (v_targetMax - L2(v_nothrust)) / timestep
 
+                tx = cos(phi) * timestep
+                ty = sin(phi) * timestep
+
+                theta = math.atan2(p[1], p[0])
+
                 thrust_lo = 0
                 thrust_hi = min(thrust_targetMax, thrust_term)
                 # while we are off by more than 1mm/s, binary search
                 # we waste a bit of time searching for really big solutions.
                 while thrust_hi - thrust_lo > 1e-3:
-                    thrust = (thrust_hi + thrust_lo) / 2
-                    v_next = thrustResult(thrust)
-                    (apoapsis, _) = planet.determineOrbit2(p, v_next)
+                    if guess and guess < thrust_hi:
+                        thrust = guess
+                        guess = None
+                    else:
+                        thrust = (thrust_hi + thrust_lo) / 2
+                    v_next = thrustResult2(thrust, tx, ty)
+                    (apoapsis, _) = planet.determineOrbit3(h, theta, v_next)
 
                     # if apoapsis is too high, or negative (i.e. hyperbolic), reduce thrust
                     if apoapsis > targetApoapsis or apoapsis < 0:
@@ -312,7 +329,8 @@ class climbSlope(object):
                 return thrust_lo # or hi, it's only 1mm/s difference
 
             thrust_term = findTerminalThrust()
-            thrust_apo = findApoapsisThrust(thrust_term)
+            guess = thrust_apo
+            thrust_apo = findApoapsisThrust(thrust_term, guess)
 
             thrust = min(thrust_term, thrust_apo)
 

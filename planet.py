@@ -126,6 +126,20 @@ class planet(object):
         p = h * v * cos(theta)
         return quadratic(ainv, -2, p*p / self.mu)
 
+    def determineOrbit3(self, h, theta, velocity):
+        # h is distance from the planet's core.
+        # theta is the angle of the position above the horizontal.
+        # phi is the angle of the velocity above the horizontal.
+        # psi is the angle of the velocity above the surface tangent.
+        # psi = (90 - theta) + phi
+        # thetabar = 90-theta
+        phi   = math.atan2(velocity[1], velocity[0])
+        thetabar = (math.pi/2) - theta
+        psi = thetabar + phi
+
+        v = L2(velocity)
+        return self.determineOrbit(h, (v, psi))
+
     def determineOrbit2(self, position, velocity):
         """
         Given a position and velocity in some coordinate frame centered about
@@ -133,20 +147,9 @@ class planet(object):
         meter), return the apsides, in meters above the core.
         If one of them is negative, the orbit is hyperbolic.
         """
-
-        # theta is the angle of the position above the horizontal.
-        # phi is the angle of the velocity above the horizontal.
-        # psi is the angle of the velocity above the surface tangent.
-        # psi = (90 - theta) + phi
-        # thetabar = 90-theta
         theta = math.atan2(position[1], position[0])
-        phi   = math.atan2(velocity[1], velocity[0])
-        thetabar = (math.pi/2) - theta
-        psi = thetabar + phi
-
         h = L2(position)
-        v = L2(velocity)
-        return self.determineOrbit(h, (v, psi))
+        return self.determineOrbit3(h, theta, velocity)
 
     def hohmann(self, a1, a2):
         """
