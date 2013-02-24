@@ -65,6 +65,7 @@ class climbSlope(object):
         acceleration = None,
         timestep = 1,
         gravityTurnCurve = 1,
+        calculateExtraThrust = False,
         dragCoefficient = None,
         specificImpulse = None,
         shipThrust = None):
@@ -135,8 +136,10 @@ class climbSlope(object):
                         self.deltaV,
                         self.dragLoss,
                         self.thrust,
-                        "" if self.thrustLimited == 0 else
-                                (" needs %g m/s^2 more thrust" % self.thrustLimited)
+                        "" if not self.thrustLimited else
+                                (" needs %smore thrust" % (
+                                    "" if self.thrustLimited is True else
+                                        ("%g m/s^2" % self.thrustLimited)))
                     ))
 
         self.planet = planet
@@ -163,10 +166,6 @@ class climbSlope(object):
             acceleration = 2.2 * planet.gravity(initialAltitude) # m/s^2
 
         variable_accel = not (specificImpulse is None and shipThrust is None)
-
-        if variable_accel:
-            # f=ma, so m=f/a
-            mass = shipThrust / acceleration
 
         TOA = planet.topOfAtmosphere() # m
         if orbitAltitude is None:
@@ -328,12 +327,6 @@ class climbSlope(object):
                         thrust_lo = thrust
                 return thrust_lo # or hi, it's only 1mm/s difference
 
-            thrust_term = findTerminalThrust()
-            guess = thrust_apo
-            thrust_apo = findApoapsisThrust(thrust_term, guess)
-
-            thrust = min(thrust_term, thrust_apo)
-
             def getAcceleration(dv, alt):
                 acc = acceleration
                 if variable_accel:
@@ -351,8 +344,21 @@ class climbSlope(object):
                     acc /= (2 - math.exp(dv / (specificImpulse * 9.81)))
                 return acc
 
-            # f=ma, so a=f/m
             a_thrust = getAcceleration(dV, alt)
+
+            thrust_term = findTerminalThrust()
+            guess = thrust_apo
+            thrust_limit = thrust_term
+            if not calculateExtraThrust:
+                # It's nice to know if thrust_apo exceeds possible thrust
+                # (a_thrust). However, determining thrust_apo precisely is very
+                # time-consuming, so let's limit it to 1 m/s^2 greater than
+                # a_thrust. This will still tell us if we need more thrust, it
+                # just won't tell us how much extra thrust we need.
+                thrust_limit = min(thrust_term, a_thrust + 1)
+            thrust_apo = findApoapsisThrust(thrust_limit, guess)
+
+            thrust = min(thrust_term, thrust_apo)
 
             #print ("thrust: %g to reach term, %g to reach apo" % (thrust_term, thrust_apo))
             if thrust < a_thrust:
@@ -360,7 +366,7 @@ class climbSlope(object):
                 if thrust < 0:
                     thrust = 0
             else:
-                thrustLimit = thrust - a_thrust
+                thrustLimit = (thrust - a_thrust) if calculateExtraThrust else True
                 thrust = a_thrust
 
             # Update everything!
