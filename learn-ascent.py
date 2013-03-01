@@ -16,11 +16,24 @@ class Profile:
     accel  = None
     drag   = None
 
+    cache = {}
+    MAX_CACHE_SIZE = 10000
+
     def __init__(self, gt0, gt1, curve):
-        self.gt0    = sorted([0,   gt0, self.alt1])[1]
-        self.gt1    = sorted([0,   gt1, self.alt1])[1]
-        self.curve  = sorted([0, curve,   2])[1]
-        self._calc_score()
+        # Limit values to 3 decimal places of precision.
+        (gt0, gt1, curve) = [(int(x * 1000) / 1000.0) for x in (gt0, gt1, curve)]
+
+        self.gt0    = sorted([0, gt0,   self.alt1])[1]
+        self.gt1    = sorted([0, gt1,   self.alt1])[1]
+        self.curve  = sorted([0, curve, 1])[1]
+
+        self.score = self.cache.get((self.gt0, self.gt1, self.curve), None)
+        if self.score is None:
+            if len(self.cache) == self.MAX_CACHE_SIZE:
+                del self.cache[random.choice(self.cache.keys())]
+            self._calc_score()
+            self.cache[(self.gt0, self.gt1, self.curve)] = self.score
+
         self.generation = 1
 
     @classmethod
@@ -30,6 +43,10 @@ class Profile:
         cls.alt1   = alt1
         cls.accel  = accel
         cls.drag   = drag
+
+    @classmethod
+    def clear_cache(cls):
+        cls.cache = {}
 
     @classmethod
     def from_string(cls, str):
@@ -48,12 +65,13 @@ class Profile:
         return Profile(gt0, gt1, curve)
 
     def mutated(self):
-        return Profile( self._mutate(self.gt0),
-                        self._mutate(self.gt1),
-                        self._mutate(self.curve))
+        vals = [self.gt0, self.gt1, self.curve]
+        i = random.randint(0, 2)
+        vals[i] = self._mutate(vals[i])
+        return Profile(vals[0], vals[1], vals[2])
 
     def _mutate(self, value):
-        amount = 0.01
+        amount = 0.1
 
         # Mutate more slowly in later generations.
         #amount /= math.log(self.generation + 1)
@@ -95,7 +113,7 @@ class Profile:
         return (not other) or self.score > other.score
 
     def __str__(self):
-        return "%f %f %f %f" % (self.gt0, self.gt1, self.curve, self.score)
+        return "%.3f %.3f %.3f %f" % (self.gt0, self.gt1, self.curve, self.score)
 
     def guide(self):
         angleStep = 15
@@ -107,10 +125,6 @@ class Profile:
                 guide += ", "
             guide += "%d %4.1f" % (angle, alt)
         guide += "\n"
-        if self.ascent:
-            guide += "average atmospheric pressure: %f\n" % (self.ascent.avgAtm)
-            guide += "dv to circularize at apoapsis: %f\n" % (self.ascent.dV_circ)
-            #guide += str(self.ascent) + "\n"
         return guide
 
 def select(pool, s):
@@ -119,15 +133,17 @@ def select(pool, s):
             return profile
     return pool[-1]
 
+SILENT = True
 
-def learnAscent(planetName, startAlt = 0, endAlt = None, accel = 2, drag = 0.2, poolSize = 20, fileIn = None):
+def learnAscent(planetName, startAlt = 0, endAlt = None, accel = 2, drag = 0.2, poolSize = 20, fileIn = None, genLimit = None):
 
     p = planet.planets[planetName.lower()]
 
     if endAlt is None:
         endAlt = math.ceil(p.topOfAtmosphere() / 5000) * 5
 
-    print("ascending to %d km with %.2f g's of acceleration" % (endAlt, accel))
+    if not SILENT:
+        print("ascending to %d km with %.2f g's of acceleration" % (endAlt, accel))
     Profile.init(p, startAlt, endAlt, accel, drag)
 
     fileOut = "%s_%d_%d_%.2f_%.2f.txt" % (p.name, startAlt, endAlt, accel, drag)
@@ -137,7 +153,7 @@ def learnAscent(planetName, startAlt = 0, endAlt = None, accel = 2, drag = 0.2, 
 
     pool = []
 
-    if fileIn and os.path.exists(fileIn):
+    if fileIn and os.path.exists(fileIn) and not SILENT:
         with open(fileIn) as f:
             for line in f.readlines():
                 pool.append(Profile.from_string(line))
@@ -148,8 +164,10 @@ def learnAscent(planetName, startAlt = 0, endAlt = None, accel = 2, drag = 0.2, 
 
     bestEver = None
     gen = 1
+    lastChange = 0
     needNewline = False
 
+    bestThisRound = None
     try:
         while True:
             best = None
@@ -161,10 +179,13 @@ def learnAscent(planetName, startAlt = 0, endAlt = None, accel = 2, drag = 0.2, 
             candidates = []
             for profile in pool:
                 profile.generation = gen
-                if profile.better_than(best):
-                    best = profile
+                if profile.better_than(best) and not SILENT:
                     if profile.better_than(bestEver):
                         bestEver = profile
+                    best = profile
+                    if profile.better_than(bestThisRound):
+                        lastChange = gen
+                        bestThisRound = profile
                         if (needNewline):
                             sys.stdout.write("\n")
                             needNewline = False
@@ -181,7 +202,8 @@ def learnAscent(planetName, startAlt = 0, endAlt = None, accel = 2, drag = 0.2, 
             candidates.sort()
             if successes:
                 needNewline = True
-                sys.stdout.write("\r%6d: best %f, average %f" % (gen, best.score, total / successes))
+                if not SILENT:
+                    sys.stdout.write("\r%6d: best %f, average %f, best ever %f" % (gen, best.score, total / successes, bestEver.score))
             newPool = []
             SELECT_P = 0.5
 
@@ -189,6 +211,13 @@ def learnAscent(planetName, startAlt = 0, endAlt = None, accel = 2, drag = 0.2, 
             if candidates:
                 newPool.append(candidates[0])
                 newPool.append(candidates[0].mutated())
+
+            if gen >= lastChange + 1000:
+                print("\n1000 stable iterations; resetting...")
+                Profile.clear_cache()
+                newPool = []
+                bestThisRound = None
+                gen = 0
 
             while len(newPool) < min(poolSize / 2, successes):
                 a = select(candidates, SELECT_P)
@@ -199,8 +228,11 @@ def learnAscent(planetName, startAlt = 0, endAlt = None, accel = 2, drag = 0.2, 
                 newPool.append(Profile.random())
             pool = newPool
             gen += 1
+            if genLimit is not None and gen >= genLimit:
+                break
 
     except KeyboardInterrupt:
+        pool.append(bestEver)
         pool.sort()
         with open(fileOut, "w") as f:
             for profile in pool:
@@ -214,14 +246,23 @@ if __name__ == "__main__":
                        help='initial altitude (km; defaults to 0)')
     parser.add_argument('alt1', metavar='alt1', type=int,
                        help='final altitude (km; defaults to the nearest 5 km mark above the atmosphere)')
-    parser.add_argument('-a', metavar='accel', type=float, default=2,
+    parser.add_argument('-a', metavar='accel', type=float, default=2.2,
                        help='ship acceleration as a multiple of planet surface gravity (default: %(default)s)')
     parser.add_argument('-d', metavar='drag', type=float, default=0.2,
                        help='drag coefficient (default: %(default)s)')
     parser.add_argument('-p', metavar='poolSize', type=int, default=20,
                        help='pool size (default: %(default)s)')
+    parser.add_argument('--profile', metavar='filename', type=str,
+                       help='profile one generation of execution and save results')
     #parser.print_help()
 
     args = parser.parse_args(sys.argv[1:])
 
-    learnAscent(args.planet, args.alt0, args.alt1, args.a, args.d, args.p)
+    random.seed(0)
+    if args.profile:
+        import cProfile
+        SILENT = True
+        cProfile.run('learnAscent(args.planet, args.alt0, args.alt1, args.a, args.d, args.p, genLimit = 5)', args.profile)
+    else:
+        SILENT = False
+        learnAscent(args.planet, args.alt0, args.alt1, args.a, args.d, args.p)
