@@ -250,7 +250,7 @@ if __name__ == "__main__":
                        help='ship acceleration as a multiple of planet surface gravity (default: %(default)s)')
     parser.add_argument('-d', metavar='drag', type=float, default=0.2,
                        help='drag coefficient (default: %(default)s)')
-    parser.add_argument('-p', metavar='poolSize', type=int, default=20,
+    parser.add_argument('-p', metavar='poolSize', type=int, default=2,
                        help='pool size (default: %(default)s)')
     parser.add_argument('--profile', metavar='filename', type=str,
                        help='profile one generation of execution and save results')
