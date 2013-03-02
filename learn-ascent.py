@@ -19,20 +19,22 @@ class Profile:
     cache = {}
     MAX_CACHE_SIZE = 10000
 
-    def __init__(self, gt0, gt1, curve):
-        # Limit values to 3 decimal places of precision.
-        (gt0, gt1, curve) = [(int(x * 1000) / 1000.0) for x in (gt0, gt1, curve)]
+    def __init__(self, gt0, gt1, curve, endAngle):
+        # Limit precision of values.
+        (gt0, gt1, endAngle) = [(int(x * 100) / 100.0) for x in (gt0, gt1, endAngle)]
+        curve = int(curve * 1000) / 1000.0
 
-        self.gt0    = sorted([0, gt0,   self.alt1])[1]
-        self.gt1    = sorted([0, gt1,   self.alt1])[1]
-        self.curve  = sorted([0, curve, 1])[1]
+        self.gt0        = sorted([  0, gt0,       self.alt1])[1]
+        self.gt1        = sorted([  0, gt1,       self.alt1])[1]
+        self.curve      = sorted([  0, curve,     1])[1]
+        self.endAngle   = sorted([-10, endAngle,  90])[1]
 
-        self.score = self.cache.get((self.gt0, self.gt1, self.curve), None)
+        self.score = self.cache.get((self.gt0, self.gt1, self.curve, self.endAngle), None)
         if self.score is None:
             if len(self.cache) == self.MAX_CACHE_SIZE:
                 del self.cache[random.choice(self.cache.keys())]
             self._calc_score()
-            self.cache[(self.gt0, self.gt1, self.curve)] = self.score
+            self.cache[(self.gt0, self.gt1, self.curve, self.endAngle)] = self.score
 
         self.generation = 1
 
@@ -51,10 +53,10 @@ class Profile:
     @classmethod
     def from_string(cls, str):
         tokens = [float(f) for f in str.strip().split(" ")]
-        if len(tokens) == 4:
+        if len(tokens) == 5:
             tokens.append(-1)
-        (gt0, gt1, curve, score) = tokens[:4]
-        return Profile(gt0, gt1, curve)
+        (gt0, gt1, curve, endAngle, score) = tokens[:5]
+        return Profile(gt0, gt1, curve, endAngle)
 
     #9.72 23.87 0.3381 1119.067026
     @classmethod
@@ -62,13 +64,14 @@ class Profile:
         gt0 = random.random() * (cls.alt1 / 2)
         gt1 = gt0 + random.random() * (cls.alt1 - gt0)
         curve = random.random() * 2
-        return Profile(gt0, gt1, curve)
+        endAngle = random.random() * 90
+        return Profile(gt0, gt1, curve, endAngle)
 
     def mutated(self):
-        vals = [self.gt0, self.gt1, self.curve]
-        i = random.randint(0, 2)
+        vals = [self.gt0, self.gt1, self.curve, self.endAngle]
+        i = random.randint(0, len(vals) - 1)
         vals[i] = self._mutate(vals[i])
-        return Profile(vals[0], vals[1], vals[2])
+        return Profile(vals[0], vals[1], vals[2], vals[3])
 
     def _mutate(self, value):
         amount = 0.1
@@ -76,7 +79,7 @@ class Profile:
         # Mutate more slowly in later generations.
         #amount /= math.log(self.generation + 1)
 
-        return value + (random.random() - 0.5) * math.sqrt(value) * amount
+        return value + (random.random() - 0.5) * (math.sqrt(math.fabs(value)) if value else 1) * amount
 
     def _calc_score(self):
         try:
@@ -87,7 +90,8 @@ class Profile:
                     gravityTurnCurve    = self.curve,
                     acceleration        = self.planet.gravity() * self.accel,
                     initialAltitude     = self.alt0 * 1000,
-                    dragCoefficient     = self.drag
+                    dragCoefficient     = self.drag,
+                    endAngleDeg         = self.endAngle
                     )
             self.score = self.ascent.deltaV()
         except ascent.BadFlightPlanException as bfpe:
@@ -102,9 +106,10 @@ class Profile:
         return self.score != -1 and self.score < other.score
 
     def combine(self, other):
-        return Profile(self._combine(self.gt0,   other.gt0),
-                       self._combine(self.gt1,   other.gt1),
-                       self._combine(self.curve, other.curve))
+        return Profile(self._combine(self.gt0,      other.gt0),
+                       self._combine(self.gt1,      other.gt1),
+                       self._combine(self.curve,    other.curve),
+                       self._combine(self.endAngle, other.endAngle))
 
     def better_than(self, other):
         return (not other) or other.score < 0 or (self.score > 0 and self.score < other.score)
@@ -113,7 +118,7 @@ class Profile:
         return (not other) or self.score > other.score
 
     def __str__(self):
-        return "%.3f %.3f %.3f %f" % (self.gt0, self.gt1, self.curve, self.score)
+        return "%.2f %.2f %.3f %.2f %f" % (self.gt0, self.gt1, self.curve, self.endAngle, self.score)
 
     def guide(self):
         angleStep = 15
@@ -212,8 +217,8 @@ def learnAscent(planetName, startAlt = 0, endAlt = None, accel = 2, drag = 0.2, 
                 newPool.append(candidates[0])
                 newPool.append(candidates[0].mutated())
 
-            if gen >= lastChange + 1000:
-                print("\n1000 stable iterations; resetting...")
+            if gen >= lastChange + 10000:
+                print("\n10000 stable iterations; resetting...")
                 Profile.clear_cache()
                 newPool = []
                 bestThisRound = None

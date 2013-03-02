@@ -68,7 +68,8 @@ class climbSlope(object):
         calculateExtraThrust = False,
         dragCoefficient = None,
         specificImpulse = None,
-        shipThrust = None):
+        shipThrust = None,
+        endAngleDeg = 0):
         """
         Compute a climb slope for exiting the atmosphere and achieving orbit.
 
@@ -153,6 +154,9 @@ class climbSlope(object):
         if dragCoefficient is None:
             dragCoefficient = planet.defaultDragCoefficient
 
+        # These angles are both measured from horizontal.
+        endAngleRad = endAngleDeg * math.pi / 180
+
         # p and v are the current position and velocity; we update these.
         # We use a coordinate system centered at the core of the planet,
         # aligned so that the initial altitude forms the y axis.
@@ -220,7 +224,7 @@ class climbSlope(object):
                 ratio **= gravityTurnCurve
                 # The more we did, the closer we want to be to pi/2 from
                 # the straight-up orientation.
-                phiSurf = - (ratio * math.pi / 2)
+                phiSurf = - (ratio * (math.pi / 2 - endAngleRad))
             # phi is the angle of thrust in the original coordinate frame.
             phi = phiSurf + psi
 
