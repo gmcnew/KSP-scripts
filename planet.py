@@ -300,7 +300,7 @@ class planet(object):
         """
         # self.altitude with pressure = self.datumPressure * 1e-6, inlined:
         # log(1e6) ~ 13.81551...
-        return self.scale * 13.81551
+        return self.scale * 13.81551 if self.scale else -self.radius
 
 
 # the sun has an infinite SOI; arbitrarily set it to 500x the orbit of Jool
