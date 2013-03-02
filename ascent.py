@@ -239,6 +239,15 @@ class climbSlope(object):
             )
             v_nothrust = [ v[i] + loss[i] * timestep for i in range(2) ]
 
+            def total_accel(pos, vel, thr):
+                altitude = L2(pos) - planet.radius
+                ag = planet.gravity(altitude)
+                ad = planet.drag(altitude, L2(vel), dragCoefficient)
+                return (
+                    thr * cos(phi) - (ad * cos(theta) + ag * cos(psi)),
+                    thr * sin(phi) - (ad * sin(theta) + ag * sin(psi))
+                )
+
             def thrustResult2(thrust, tx, ty):
                 return (v_nothrust[0] + thrust * tx, v_nothrust[1] + thrust * ty)
 
@@ -369,10 +378,41 @@ class climbSlope(object):
                 thrustLimit = (thrust - a_thrust) if calculateExtraThrust else True
                 thrust = a_thrust
 
+            def vmult(val, vector):
+                return [val * x for x in vector]
+
+            def vadd(v1, v2):
+                return [v1[i] + v2[i] for i in range(len(v1))]
+
+            def update_rk4(p, v):
+                dv1 = vmult(timestep, total_accel(p, v, thrust))
+                dx1 = vmult(timestep, v)
+
+                dv2 = vmult(timestep, total_accel(vadd(p, vmult(0.5, dx1)), vadd(v, vmult(0.5, dv1)), thrust))
+                dx2 = vmult(timestep, vadd(v, vmult(0.5, dv1)))
+
+                dv3 = vmult(timestep, total_accel(vadd(p, vmult(0.5, dx2)), vadd(v, vmult(0.5, dv2)), thrust))
+                dx3 = vmult(timestep, vadd(v, vmult(0.5, dv2)))
+
+                dv4 = vmult(timestep, total_accel(vadd(p, dx3), vadd(v, dv3), thrust))
+                dx4 = vmult(timestep, vadd(v, dv3))
+
+                dx = vmult(1.0 / 6.0, vadd(vadd(vadd(dx1, vmult(2, dx2)), vmult(2, dx3)), dx4))
+                dv = vmult(1.0 / 6.0, vadd(vadd(vadd(dv1, vmult(2, dv2)), vmult(2, dv3)), dv4))
+
+                p = vadd(p, dx)
+                v = vadd(v, dv)
+                return (p, v)
+
+            def update_euler(p, v):
+                for i in (0,1): p[i] += v[i] * timestep
+                v = thrustResult(thrust)
+                return (p, v)
+
             # Update everything!
-            for i in (0,1): p[i] += v[i] * timestep
+            (p, v) = update_rk4(p, v)
             h = L2(p)
-            v = thrustResult(thrust)
+
             dV += thrust * timestep
             dragLoss += a_drag * timestep
             t += timestep
