@@ -245,26 +245,22 @@ def learnAscent(planetName, startAlt = 0, endAlt = None, accel = 2, drag = 0.2, 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = "Learn an ascent.")
-    parser.add_argument('planet', metavar='planet',
-                       help='planet or moon')
-    parser.add_argument('alt0', metavar='alt0', type=int,
-                       help='initial altitude (km; defaults to 0)')
-    parser.add_argument('alt1', metavar='alt1', type=int,
-                       help='final altitude (km; defaults to the nearest 5 km mark above the atmosphere)')
-    parser.add_argument('-a', metavar='accel', type=float, default=2.2,
-                       help='ship acceleration as a multiple of planet surface gravity (default: %(default)s)')
-    parser.add_argument('-d', metavar='drag', type=float, default=0.2,
-                       help='drag coefficient (default: %(default)s)')
-    parser.add_argument('-p', metavar='poolSize', type=int, default=2,
-                       help='pool size (default: %(default)s)')
-    parser.add_argument('--profile', metavar='filename', type=str,
-                       help='profile one generation of execution and save results')
-    #parser.print_help()
+    args = [
+        ('planet',    'planet',   str,   None, 'planet or moon'),
+        ('alt0',      'alt0',     int,   None, 'initial altitude (km)'),
+        ('alt1',      'alt1',     int,   None, 'final altitude (km)'),
+        ('-a',        'accel',    float, 2.2,  'ship acceleration as a multiple of planet surface gravity (default: %(default)s)'),
+        ('-d',        'drag',     float, 0.2,  'drag coefficient (default: %(default)s)'),
+        ('-p',        'poolSize', int,   2,    'pool size (default: %(default)s)'),
+        ('--profile', 'filename', str,   None, 'profile one generation of execution and save results'),
+        ]
+    for (name, metavar, type, default, help) in args:
+        parser.add_argument(name, metavar=metavar, type=type, help=help, default=default)
 
     args = parser.parse_args(sys.argv[1:])
 
-    random.seed(0)
     if args.profile:
+        random.seed(0)
         import cProfile
         SILENT = True
         cProfile.run('learnAscent(args.planet, args.alt0, args.alt1, args.a, args.d, args.p, genLimit = 5)', args.profile)
