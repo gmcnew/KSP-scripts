@@ -226,16 +226,16 @@ def learnAscent(planetName, startAlt = 0, endAlt = None, accel = 2, drag = 0.2, 
                 b = select(candidates, SELECT_P)
                 newPool.append(a.combine(b))
 
-            while len(newPool) < poolSize:
-                newPool.append(Profile.random())
-            pool = newPool
-
             if gen >= lastChange + STABLE_ITERATIONS:
                 print("\n%d stable iterations; resetting..." % STABLE_ITERATIONS)
                 Profile.clear_cache()
-                pool = []
+                newPool = []
                 bestThisRound = None
                 gen = 0
+
+            while len(newPool) < poolSize:
+                newPool.append(Profile.random())
+            pool = newPool
 
             gen += 1
             if genLimit is not None and gen >= genLimit:
