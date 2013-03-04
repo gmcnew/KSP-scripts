@@ -7,6 +7,8 @@ import sys
 import ascent
 import planet
 
+STABLE_ITERATIONS = 10000
+
 class Profile:
 
     # Class variables.
@@ -21,8 +23,8 @@ class Profile:
 
     def __init__(self, gt0, gt1, curve, endAngle):
         # Limit precision of values.
-        (gt0, gt1, endAngle) = [(int(x * 100) / 100.0) for x in (gt0, gt1, endAngle)]
-        curve = int(curve * 1000) / 1000.0
+        (gt0, gt1, endAngle) = [round(x, 2) for x in (gt0, gt1, endAngle)]
+        curve = round(curve, 3)
 
         self.gt0        = sorted([  0, gt0,       self.alt1])[1]
         self.gt1        = sorted([  0, gt1,       self.alt1])[1]
@@ -161,7 +163,9 @@ def learnAscent(planetName, startAlt = 0, endAlt = None, accel = 2, drag = 0.2, 
     if fileIn and os.path.exists(fileIn) and not SILENT:
         with open(fileIn) as f:
             for line in f.readlines():
-                pool.append(Profile.from_string(line))
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    pool.append(Profile.from_string(line))
 
     while len(pool) < poolSize:
         profile = Profile.random()
@@ -217,13 +221,6 @@ def learnAscent(planetName, startAlt = 0, endAlt = None, accel = 2, drag = 0.2, 
                 newPool.append(candidates[0])
                 newPool.append(candidates[0].mutated())
 
-            if gen >= lastChange + 10000:
-                print("\n10000 stable iterations; resetting...")
-                Profile.clear_cache()
-                newPool = []
-                bestThisRound = None
-                gen = 0
-
             while len(newPool) < min(poolSize / 2, successes):
                 a = select(candidates, SELECT_P)
                 b = select(candidates, SELECT_P)
@@ -232,6 +229,14 @@ def learnAscent(planetName, startAlt = 0, endAlt = None, accel = 2, drag = 0.2, 
             while len(newPool) < poolSize:
                 newPool.append(Profile.random())
             pool = newPool
+
+            if gen >= lastChange + STABLE_ITERATIONS:
+                print("\n%d stable iterations; resetting..." % STABLE_ITERATIONS)
+                Profile.clear_cache()
+                pool = []
+                bestThisRound = None
+                gen = 0
+
             gen += 1
             if genLimit is not None and gen >= genLimit:
                 break
