@@ -63,6 +63,14 @@ class planet(object):
         r = self.radius + altitude
         return self.mu / (r*r)
 
+    def recircularize(self, alt1, alt2):
+        (alt1, alt2) = sorted([alt1, alt2])
+        v1 = self.orbitalVelocity(alt1)
+        v2 = self.orbitalVelocity(alt1, ap = alt2)
+        v3 = self.orbitalVelocity(alt2, pe = alt1)
+        v4 = self.orbitalVelocity(alt2)
+        return (v2 - v1) + (v4 - v3)
+
     def orbitalVelocity(self, altitude, ap = None, pe = None):
         """
         Return the velocity required to maintain an orbit with the given
