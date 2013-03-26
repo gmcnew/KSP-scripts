@@ -335,5 +335,5 @@ def getPlanet(name):
     return planets[name.lower()]
 
 # register the planets with the module, so users can write planet.kerbin or planet.getPlanet("kerbin") equivalently
-for (name, p) in planets.iteritems():
+for (name, p) in planets.items():
     globals()[name] = p

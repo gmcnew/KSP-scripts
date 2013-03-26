@@ -26,10 +26,10 @@ class Profile:
         (gt0, gt1, endAngle) = [round(x, 2) for x in (gt0, gt1, endAngle)]
         curve = round(curve, 3)
 
-        self.gt0        = sorted([  0, gt0,       self.alt1])[1]
-        self.gt1        = sorted([  0, gt1,       self.alt1])[1]
-        self.curve      = sorted([  0, curve,     1])[1]
-        self.endAngle   = sorted([-10, endAngle,  90])[1]
+        self.gt0        = min(max(gt0,        0), self.alt1)
+        self.gt1        = min(max(gt1,        0), self.alt1)
+        self.curve      = min(max(curve,      0), 1)
+        self.endAngle   = min(max(endAngle, -10), 90)
 
         self.score = self.cache.get((self.gt0, self.gt1, self.curve, self.endAngle), None)
         if self.score is None:
