@@ -129,13 +129,19 @@ class Profile:
 
     def guide(self):
         angleStep = 15
-        guide = "(angle alt) "
-        for angle in range(0, 90 + 1, angleStep):
-            dy = self.gt1 - self.gt0
-            alt = self.gt0 + ((float(angle) / 90) ** (1.0 / self.curve)) * dy
-            if angle != 0:
-                guide += ", "
-            guide += "%d %4.1f" % (angle, alt)
+        guide = ""
+        """
+        if self.curve:
+           guide = "(angle alt) "
+           for angle in range(0, 90 + 1, angleStep):
+               dy = self.gt1 - self.gt0
+               alt = self.gt0 + ((float(angle) / 90) ** (1.0 / self.curve)) * dy
+               if angle != 0:
+                   guide += ", "
+               guide += "%d %4.1f" % (angle, alt)
+        """
+        if self.ascent:
+            guide += " loss g/atm/steer=%.2f/%.2f/%.2f" % (self.ascent.loss_gravity, self.ascent.loss_drag, self.ascent.loss_steering)
         guide += "\n"
         return guide
 
