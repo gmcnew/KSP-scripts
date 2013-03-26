@@ -193,6 +193,9 @@ class climbSlope(object):
         # decide how much to burn and update our position.
         targetApoapsis = orbitAltitude + planet.radius
         climbSlope = []             # ClimbPoint list
+        loss_steering = 0
+        loss_drag     = 0
+        loss_gravity  = 0
 
         # Keep track of approximately how much thrust would be needed to reach
         # the desired apoapsis.
@@ -382,6 +385,12 @@ class climbSlope(object):
                 thrustLimit = (thrust - a_thrust) if calculateExtraThrust else True
                 thrust = a_thrust
 
+            vmag = math.sqrt(v[0] ** 2 + v[1] ** 2)
+            vdot = 0 if not vmag else (v[0] * cos(phi) + v[1] * sin(phi)) / vmag
+            loss_steering += timestep * thrust * (1 - vdot)
+            loss_drag     += timestep * a_drag
+            loss_gravity  += timestep * math.fabs(sin(thetaSurf)) * planet.gravity(alt)
+
             def vmult(val, vector):
                 return [val * x for x in vector]
 
@@ -426,6 +435,9 @@ class climbSlope(object):
             # Timed out...
             raise BadFlightPlanException
 
+        self.loss_steering = loss_steering
+        self.loss_drag     = loss_drag
+        self.loss_gravity  = loss_gravity
         self._climbSlope = climbSlope
         self.planet = planet
         self.orbit = orbitAltitude
