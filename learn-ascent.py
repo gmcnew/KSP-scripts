@@ -31,6 +31,11 @@ class Profile:
         self.curve      = min(max(curve,      0), 1)
         self.endAngle   = min(max(endAngle, -10), 90)
 
+        # Calculating the end angle is actually not very helpful.
+        self.endAngle   = 0
+
+        self.ascent     = None
+
         self.score = self.cache.get((self.gt0, self.gt1, self.curve, self.endAngle), None)
         if self.score is None:
             if len(self.cache) == self.MAX_CACHE_SIZE:
