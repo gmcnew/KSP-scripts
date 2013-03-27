@@ -71,6 +71,9 @@ class planet(object):
         v4 = self.orbitalVelocity(alt2)
         return (v2 - v1) + (v4 - v3)
 
+    def impactVelocity(self, altitude):
+        return self.orbitalVelocity(0, ap = altitude, pe = -self.radius)
+
     def orbitalVelocity(self, altitude, ap = None, pe = None):
         """
         Return the velocity required to maintain an orbit with the given
