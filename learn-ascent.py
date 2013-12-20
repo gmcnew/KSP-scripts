@@ -130,16 +130,12 @@ class Profile:
     def guide(self):
         angleStep = 15
         guide = ""
-        """
         if self.curve:
-           guide = "(angle alt) "
+           guide = "angle  altitude"
            for angle in range(0, 90 + 1, angleStep):
                dy = self.gt1 - self.gt0
                alt = self.gt0 + ((float(angle) / 90) ** (1.0 / self.curve)) * dy
-               if angle != 0:
-                   guide += ", "
-               guide += "%d %4.1f" % (angle, alt)
-        """
+               guide += "\n%5d  %8.1f" % (angle, alt)
         return guide
 
     @classmethod
@@ -272,6 +268,8 @@ def learnAscent(planetName, startAlt = 0, endAlt = None, accel = 2, drag = 0.2, 
         with open(fileOut, "w") as f:
             for profile in pool:
                 f.write("%s\n" % profile)
+        print("")
+        print(bestEver.guide())
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = "Learn an ascent.")
