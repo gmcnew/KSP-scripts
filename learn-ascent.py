@@ -7,7 +7,10 @@ import sys
 import ascent
 import planet
 
-STABLE_ITERATIONS = 10000
+STABLE_ITERATIONS = 1000
+
+# Using an end angle other than 0 is actually not very helpful.
+VARY_END_ANGLE = False
 
 class Profile:
 
@@ -29,10 +32,7 @@ class Profile:
         self.gt0        = min(max(gt0,        0), self.alt1)
         self.gt1        = min(max(gt1,        0), self.alt1)
         self.curve      = min(max(curve,      0), 1)
-        self.endAngle   = min(max(endAngle, -10), 90)
-
-        # Calculating the end angle is actually not very helpful.
-        self.endAngle   = 0
+        self.endAngle   = min(max(endAngle, -10), 90) if VARY_END_ANGLE else 0
 
         self.ascent     = None
 
@@ -140,10 +140,25 @@ class Profile:
                    guide += ", "
                guide += "%d %4.1f" % (angle, alt)
         """
-        if self.ascent:
-            guide += " loss g/atm/steer=%.2f/%.2f/%.2f" % (self.ascent.loss_gravity, self.ascent.loss_drag, self.ascent.loss_steering)
-        guide += "\n"
         return guide
+
+    @classmethod
+    def desc_header(cls):
+        header = "start    end shape"
+        if VARY_END_ANGLE:
+            header += " endAng"
+        header += "   deltaV"
+        header += "  loss_g     atm  steer"
+        return header
+
+    def desc(self):
+        desc = ""
+        desc += "%5.2f %6.2f %5.1f " % (self.gt0, self.gt1, self.curve * 100)
+        if VARY_END_ANGLE:
+            desc += "%6.2f " % self.endAngle
+        desc += "%8.2f " % self.score
+        desc += "%7.2f %7.2f %6.2f" % (self.ascent.loss_gravity, self.ascent.loss_drag, self.ascent.loss_steering)
+        return desc
 
 def select(pool, s):
     for profile in pool:
@@ -161,7 +176,10 @@ def learnAscent(planetName, startAlt = 0, endAlt = None, accel = 2, drag = 0.2, 
         endAlt = math.ceil(p.topOfAtmosphere() / 5000) * 5
 
     if not SILENT:
-        print("ascending to %d km with %.2f g's of acceleration" % (endAlt, accel))
+        print("ascending on %s from %d to %d km" % (p, startAlt, endAlt))
+        print("max acceleration: %.2f x surface gravity = %.2f m/s^2" % (accel, accel * p.gravity()))
+        if drag != 0.2:
+            print("drag coefficient: %.2f" % drag)
     Profile.init(p, startAlt, endAlt, accel, drag)
 
     fileOut = "%s_%d_%d_%.2f_%.2f.txt" % (p.name, startAlt, endAlt, accel, drag)
@@ -188,29 +206,24 @@ def learnAscent(planetName, startAlt = 0, endAlt = None, accel = 2, drag = 0.2, 
     needNewline = False
 
     bestThisRound = None
+    if not SILENT:
+        print("%6s %s" % ("iter", Profile.desc_header()))
     try:
         while True:
             best = None
             worst = None
             total = 0
             successes = 0
-            # 7.6 45.0 0.653 = 4435.43
-            # 8.7 45.9 0.610 = 4436.00
             candidates = []
             for profile in pool:
                 profile.generation = gen
-                if profile.better_than(best) and not SILENT:
+                if profile.better_than(best):
                     if profile.better_than(bestEver):
                         bestEver = profile
                     best = profile
                     if profile.better_than(bestThisRound):
                         lastChange = gen
                         bestThisRound = profile
-                        if (needNewline):
-                            sys.stdout.write("\n")
-                            needNewline = False
-                        print(" " * 8 + str(profile))
-                        print(profile.guide())
 
                 if profile.worse_than(worst):
                     worst = profile
@@ -220,10 +233,10 @@ def learnAscent(planetName, startAlt = 0, endAlt = None, accel = 2, drag = 0.2, 
                     successes += 1
                     candidates.append(profile)
             candidates.sort()
-            if successes:
-                needNewline = True
-                if not SILENT:
-                    sys.stdout.write("\r%6d: best %f, average %f, best ever %f" % (gen, best.score, total / successes, bestEver.score))
+            if successes and not SILENT:
+                lineOut = "\r%6d %s" % (gen, bestEver.desc())
+                sys.stdout.write(lineOut)
+                sys.stdout.flush()
             newPool = []
             SELECT_P = 0.5
 
@@ -238,11 +251,11 @@ def learnAscent(planetName, startAlt = 0, endAlt = None, accel = 2, drag = 0.2, 
                 newPool.append(a.combine(b))
 
             if gen >= lastChange + STABLE_ITERATIONS:
-                print("\n%d stable iterations; resetting..." % STABLE_ITERATIONS)
+                #print("\n%6d stable iterations; resetting..." % STABLE_ITERATIONS)
                 Profile.clear_cache()
                 newPool = []
+                lastChange = gen
                 bestThisRound = None
-                gen = 0
 
             while len(newPool) < poolSize:
                 newPool.append(Profile.random())
@@ -253,6 +266,7 @@ def learnAscent(planetName, startAlt = 0, endAlt = None, accel = 2, drag = 0.2, 
                 break
 
     except KeyboardInterrupt:
+        print("")
         pool.append(bestEver)
         pool.sort()
         with open(fileOut, "w") as f:
